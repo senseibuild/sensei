@@ -1,4 +1,4 @@
 #!/usr/bin/env ruby
 
 require 'sensei'
-Sensei.application.run
+Sensei.driver.run

@@ -1,134 +1,57 @@
-require 'sensei/compiler'
+require 'sensei/rule'
 
 module Sensei
   module Compilers
-    class LibraryCompilerConfiguration < CompilerConfiguration
-      def output(path)
-        @output = path
-      end
+    class CLibrarianConfiguration < NinjaConfiguration
+      attr_reader :_output
 
-      def get_output
-        @output
-      end
-    end
-
-    class LibraryCompilerBuilder < CompilerBuilder
-      def get_outputs
-        [ get_output_name(configuration.get_output) ]
-      end
-
-      def get_output_name(name)
-        name.change_extension ".a"
-      end
-
-      def write_ninja(writer, rule)
-        writer.build get_output_name(configuration.get_output), @files, rule, @configuration
-      end
-    end
-
-    class LibraryCompiler < Compiler
-      def initialize(name, *args, &block)
+      def initialize(*args, &block)
         super *args, &block
-        @name = name
-        @description = "AR $out"
-      end
-
-      def write_ninja(writer, name)
-        writer.var :command, "#{@name} rvs $out $in"
-        writer.var :description, @description
-      end
-
-      def create_config(package, *args, &block)
-        LibraryCompilerConfiguration.new package, self, *args, &block
-      end
-
-      def create_builder(package, *args, &block)
-        LibraryCompilerBuilder.new package, create_config(package, *args, &block)
-      end
-    end
-
-    class LinkerCompilerConfiguration < CompilerConfiguration
-      def initialize(package, compiler, *args, &block)
-        @output = CompilerFile.new package, :packagebuild, package.name if !!package
-        super package, compiler, *args, &block
-      end
-
-      def output(path, type = :packagebuild)
-        @output = CompilerFile.new @package, type, path
-      end
-
-      def get_output
-        @output
-      end
-
-      def shared
-        @shared = true
-        flags '-shared'
-      end
-
-      def is_shared
-        @shared || false
       end
 
       def flags(*args)
-        add_config :flags, args.join(' ')
+        _append_config :flags, args.flatten.join(' ') + ' '
       end
 
-      def library(*args)
-        flags args.map! { |i| "-l#{i}" }
-      end
-
-      def using(*packages)
-        library packages.libraries if !!packages.libraries
+      def output(output)
+        @_output = output
       end
     end
 
-    class LinkerCompilerBuilder < CompilerBuilder
-      def get_library_name
-        configuration.get_output.change_extension('.so') if !Sensei.is_windows
-        configuration.get_output.change_extension('.dll') if Sensei.is_windows
+    class CLibrarianBuilder < RuleBuilder
+      def initialize(rule, config, input)
+        input = [input] if not input.is_a? Array
+        super rule, config, input
       end
 
-      def get_outputs
-        outs = Array.new
-
-        if configuration.is_shared then
-          outs << get_library_name
-          outs << get_library_name.change_extension('.a') if Sensei.is_windows
-        else
-          outs << configuration.get_output
-        end
-
-        outs
+      def get_output_name(input)
+        input.convert('.o', :packagebuild)
       end
 
-      def write_ninja(writer, rule)
-        writer.build get_library_name, @files, rule, @configuration
+      def get_output
+        @config._output
+      end
 
-        if Sensei.is_windows then
-          writer.build get_library_name.change_extension('.a'), get_library_name, 'phony', nil
-        end
+      def write_ninja(w)
+        @config._resolve_packages
+        write_build w, @rule, get_output, @input, @config
       end
     end
 
-    class LinkerCompiler < Compiler
-      def initialize(name, *args, &block)
-        super *args, &block
-        @name = name
-        @description = "LINK $out"
+    class CLibrarian < Rule
+      def initialize(path)
+        super() do
+          description "AR $out"
+          command "#{path} -o $out $flags $in"
+        end
       end
 
-      def write_ninja(writer, name)
-        writer.var :command, "#{@name} $#{name}_flags -o $out $in"
-        writer.var :description, @description
+      def create_config(*args, &block)
+        CLibrarianConfiguration.new *args, &block
       end
 
-      def create_config(package, *args, &block)
-        LinkerCompilerConfiguration.new package, self, *args, &block
-      end
-
-      def create_builder(package, *args, &block)
-        LinkerCompilerBuilder.new package, create_config(package, *args, &block)
+      def create_builder(rule, config, input)
+        CLibrarianBuilder.new rule, config, input
       end
     end
   end

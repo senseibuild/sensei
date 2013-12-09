@@ -1,4 +1,5 @@
-require 'sensei/compilers/c_cxx'
+require 'sensei/compilers/gcc'
+require 'sensei/compilers/binutils'
 
 include Sensei::Compilers
 
@@ -11,6 +12,11 @@ c_rules = Ruleset.new do
     end
 end
 
+find_package "opengl"
+find_package "m"
+
 compiler :cc => CCompiler.new("g++", c_rules)
+compiler :ar => LibraryCompiler.new("ar")
+compiler :ld => LinkerCompiler.new("g++")
 
 import 'Source'
