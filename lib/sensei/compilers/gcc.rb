@@ -3,7 +3,7 @@ require 'sensei/rule'
 module Sensei
   module Compilers
     class CCompilerConfiguration < NinjaConfiguration
-      attr_reader :packages
+      include PackageCapable
 
       def initialize(*args, &block)
         @packages = Array.new
@@ -26,32 +26,20 @@ module Sensei
         end
       end
 
-      def using(*args)
-        @packages.concat args
-      end
-
-      def _resolve_packages
-        @packages.each do |pkg|
-          pkg = pkg.resolve if pkg.respond_to? :resolve
-
-          _package_include pkg, :includes
-          _package_include pkg, :defines
-        end
-      end
-
-      def _package_include(package, method)
-        send method, package.send(method) if package.respond_to? method
+      def _resolve_package(pkg)
+        _package_use pkg, :includes
+        _package_use pkg, :defines
       end
     end
 
     class CCompilerBuilder < RuleBuilder
       def initialize(rule, config, input)
-        input = [input] if not input.is_a? Array
+        input = [input] unless input.is_a? Array
         super rule, config, input
       end
 
       def get_output_name(input)
-        input.convert('.o', :projectbuild)
+        input.addconvert('.o', :projectbuild)
       end
 
       def get_output
@@ -92,88 +80,28 @@ module Sensei
       end
     end
 
-    class CLinkerConfiguration < NinjaConfiguration
-      attr_reader :packages, :input, :platform, :_output
-
-      def initialize(*args, &block)
-        @packages = Array.new
-        @input = Array.new
-        super *args, &block
-      end
-
-      def flags(*args)
-        _append_config :flags, args.flatten.join(' ') + ' '
-      end
-
-      def libdir(*args)
-        flags *args.flatten.map! { |i| "-L#{i.to_build}" }
-      end
-
-      def library(*args)
-        flags *args.flatten.map! { |i| "-l#{i}" }
-      end
-
-      def libinput(*args)
-        @input.concat args.flatten
-      end
-
-      def script(path)
-        flags "-T", path.to_build.to_s
-      end
-
-      def output(output)
-        @_output = output
-      end
-
-      def _resolve_packages
-        @packages.each do |pkg|
-          pkg = pkg.resolve if pkg.respond_to? :resolve
-
-          _package_include pkg, :libdir
-          _package_include pkg, :library
-          _package_include pkg, :libinput
-        end
-      end
-
-      def _package_include(package, method)
-        send method, package.send(method) if package.respond_to? method
-      end
-    end
-
-    class CLinkerBuilder < RuleBuilder
-      def initialize(rule, config, input)
-        input = [input] if not input.is_a? Array
-        super rule, config, input
-      end
-
+    class CPreprocessorBuilder < CCompilerBuilder
       def get_output_name(input)
-        input.convert('.o', :packagebuild)
-      end
-
-      def get_output
-        @config._output
-      end
-
-      def write_ninja(w)
-        @config._resolve_packages
-        write_build w, @rule, get_output, @input + @config.input, @config
+        input.addconvert('.pp', :projectbuild)
       end
     end
 
-    class CLinker < Rule
+    class CPreprocessor < Rule
       def initialize(path)
         super() do
-          description "LINK $out"
-          command "#{path} -o $out $flags $in"
+          description "CPP $in"
+          command "#{path} -MMD -MT $out -MF $out.d -E $in -o $out $flags"
+          depfile "$out.d"
+          deps "gcc"
         end
       end
 
       def create_config(*args, &block)
-        CLinkerConfiguration.new *args, &block
+        CCompilerConfiguration.new *args, &block
       end
 
       def create_builder(rule, config, input)
-        CLinkerBuilder.new rule, config, input
+        CPreprocessorBuilder.new rule, config, input
       end
     end
   end

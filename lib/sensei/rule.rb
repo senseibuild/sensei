@@ -1,4 +1,5 @@
 require 'docile'
+require 'sensei/utils'
 require 'sensei/configurable'
 
 module Sensei
@@ -62,7 +63,7 @@ module Sensei
     end
 
     def write_build(w, rule, output, input = nil, config = nil, deps = nil, orderDeps = nil)
-      output = [output] if not output.is_a? Array
+      output = [output] unless output.is_a? Array
       input = [input] if input and not input.is_a? Array
       deps = [deps] if deps and not deps.is_a? Array
       orderDeps = [orderDeps] if orderDeps and not orderDeps.is_a? Array
@@ -101,6 +102,45 @@ module Sensei
       w << " || #{orderDeps.join(' ')}" if orderDeps
       w << "\n"
       config._write_ninja w, '  '
+    end
+  end
+
+  module PackageCapable
+    attr_reader :_depends, :_odepends
+
+    def using(*args)
+      @_packages ||= Array.new
+      @_packages.concat args.flatten
+    end
+
+    def depends(*args)
+      @_depends ||= Array.new
+      @_depends.concat SenseiUtils.get_outputs(args)
+    end
+
+    def odepends(*args)
+      @_odepends ||= Array.new
+      @_odepends.concat SenseiUtils.get_outputs(args)
+    end
+
+    def _resolve_packages
+      return unless @_packages
+
+      @_packages.each do |pkg|
+        pkg = pkg.resolve if pkg.respond_to? :resolve
+        _resolve_package pkg
+      end
+    end
+
+    def _package_use(package, method, transform = nil)
+      transform = Proc.new { |f| f } unless transform
+      send method, transform.call(package.send(method)) if package.respond_to? method
+    end
+  end
+
+  module RuleHelpers
+    def self.get_output
+      Proc.new { |f| SenseiUtils.get_outputs f }
     end
   end
 

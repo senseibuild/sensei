@@ -1,28 +1,11 @@
 require 'docile'
+require 'ostruct'
 require 'sensei/configurable'
 require 'sensei/rule'
 require 'sensei/file'
+require 'sensei/utils'
 
 module Sensei
-  class ProjectHelper
-    def self.get_outputs(args)
-      outputs = Array.new
-
-      args = [ args ] unless args.is_a? Array
-      args.each do |output|
-        if output.respond_to? :get_output then
-          outputs.concat get_outputs(output.get_output)
-        elsif output.is_a? Array then
-          outputs.concat get_outputs(output)
-        else
-          outputs << output
-        end
-      end
-
-      outputs
-    end
-  end
-
   class Project
     include Configurable
     attr_reader :name, :parent, :path
@@ -34,11 +17,17 @@ module Sensei
       @builds = Array.new
     end
 
+    def find_packages(*args)
+      args.map do |pkg|
+        Sensei.driver.package_manager.get pkg
+      end
+    end
+
     def glob(*args)
       files = Array.new
 
       args.each do |pattern|
-        Pathname.glob(@parent.path + pattern) do |f|
+        Pathname.glob(@path + pattern) do |f|
           files << SenseiFile.new(self, :project, f.relative_path_from(@parent.path))
         end
       end
@@ -46,28 +35,26 @@ module Sensei
       files
     end
 
+    def mglob(dirs, *args)
+      dirs.map do |dir|
+        files.concat glob(*args.map { |f| File.join(dir, f) })
+      end.flatten
+    end
+
     def file(file, type = :project)
       SenseiFile.new(self, type, file)
     end
 
     def files(*files)
-      f = Array.new
-
-      files.each do |fname|
-        f << file(fname, :project)
+      files.map do |f|
+        file f, :project
       end
-
-      f
     end
 
     def files2(type, *files)
-      f = Array.new
-
-      files.each do |fname|
-        f << file(fname, type)
+      files.map do |f|
+        file f, type
       end
-
-      f
     end
 
     def full(file)
@@ -78,13 +65,18 @@ module Sensei
       begin
         rule = @parent._find_rule rulename
         config = rule.create_config *args, &block
-        builder = rule.create_builder(rulename, config, ProjectHelper.get_outputs(input))
+        builder = rule.create_builder rulename, config, SenseiUtils.get_outputs(input)
         @builds << builder
         builder
       rescue => e
         puts e.inspect
         puts e.backtrace
       end
+    end
+
+    def register_package(args)
+      args = OpenStruct.new args if args.is_a? Hash
+      Sensei.driver.package_manager.register @name, args
     end
 
     def _write_ninja(w)

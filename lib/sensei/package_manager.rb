@@ -20,7 +20,7 @@ module Sensei
     end
 
     def resolve
-      Sensei.application.package_manager.get @name, false
+      Sensei.driver.package_manager.get @name, false
     end
   end
 

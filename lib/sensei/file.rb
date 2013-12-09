@@ -53,6 +53,10 @@ module Sensei
       SenseiFile.new @project, type, path.sub_ext(ext)
     end
 
+    def addconvert(ext, type)
+      SenseiFile.new @project, type, path.sub_ext(path.extname + ext)
+    end
+
     def +(path)
       SenseiFile.new @project, @type, @path + path
     end

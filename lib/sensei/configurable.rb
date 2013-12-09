@@ -4,7 +4,7 @@ module Sensei
   module Configurable
     def import(*args)
       args.each do |config|
-        next if not config
+        next unless config
         import *config.parents if config.parents
         Docile.dsl_eval self, &config.rules if config.rules
       end

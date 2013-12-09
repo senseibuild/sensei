@@ -3,13 +3,14 @@ require 'ostruct'
 require 'pathname'
 require 'fileutils'
 require 'sensei/module'
+require 'sensei/package_manager'
 
 module Sensei
   class Driver
-    attr_reader :options
+    attr_reader :options, :package_manager
 
     def initialize
-
+      @package_manager = PackageManager.new
     end
 
     def run
