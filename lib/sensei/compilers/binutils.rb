@@ -28,14 +28,7 @@ module Sensei
       end
 
       def script(args)
-        begin
-          a = SenseiUtils.get_output(args)
-          puts a
         flags "-T", SenseiUtils.get_output(args).to_build
-      rescue => e
-        puts e.inspect
-        puts e.backtrace
-      end
       end
 
       def output(output)
@@ -84,19 +77,14 @@ module Sensei
     end
 
     class CLibrarianConfiguration < NinjaConfiguration
-      attr_reader :_output, :_odepends
+      attr_reader :_output
 
       def initialize(*args, &block)
-        @_odepends = Array.new
         super *args, &block
       end
 
       def flags(*args)
         _append_config :flags, args.flatten.join(' ') + ' '
-      end
-
-      def odepends(*args)
-        @_odepends.concat SenseiUtils.get_outputs(args)
       end
 
       def output(output)
@@ -108,10 +96,6 @@ module Sensei
       def initialize(rule, config, input)
         input = [input] unless input.is_a? Array
         super rule, config, input
-      end
-
-      def get_output_name(input)
-        input.convert('.o', :packagebuild)
       end
 
       def get_output
@@ -137,6 +121,53 @@ module Sensei
 
       def create_builder(rule, config, input)
         CLibrarianBuilder.new rule, config, input
+      end
+    end
+
+    class CObjCopyConfiguration < NinjaConfiguration
+      attr_reader :_output
+
+      def initialize(*args, &block)
+        super *args, &block
+      end
+
+      def flags(*args)
+        _append_config :flags, args.flatten.join(' ') + ' '
+      end
+
+      def output(output)
+        @_output = output
+      end
+    end
+
+    class CObjCopyBuilder < RuleBuilder
+      def initialize(rule, config, input)
+        input = [input] unless input.is_a? Array
+        super rule, config, input
+      end
+      def get_output
+        @config._output
+      end
+
+      def write_ninja(w)
+        write_build w, @rule, get_output, @input, @config
+      end
+    end
+
+    class CObjCopy < Rule
+      def initialize(path)
+        super() do
+          description "OBJCOPY $out"
+          command "#{path} $flags $in $out"
+        end
+      end
+
+      def create_config(*args, &block)
+        CObjCopyConfiguration.new *args, &block
+      end
+
+      def create_builder(rule, config, input)
+        CObjCopyBuilder.new rule, config, input
       end
     end
   end
