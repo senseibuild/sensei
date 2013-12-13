@@ -57,6 +57,10 @@ module Sensei
       SenseiFile.new @project, type, path.sub_ext(path.extname + ext)
     end
 
+    def rebase(base)
+      SenseiFile.new base.project, base.type, base.path + @path
+    end
+
     def +(path)
       SenseiFile.new @project, @type, @path + path
     end

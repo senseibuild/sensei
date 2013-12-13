@@ -15,6 +15,10 @@ module Sensei
         _append_config :flags, args.flatten.join(' ') + ' '
       end
 
+      def memmap(file)
+        flags "-Map #{file.to_build}"
+      end
+
       def libdir(*args)
         flags *args.flatten.map! { |i| "-L#{i.to_build}" }
       end

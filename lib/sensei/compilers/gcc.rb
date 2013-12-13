@@ -65,7 +65,7 @@ module Sensei
       def initialize(path)
         super() do
           description "CC $in"
-          command "#{path} -MMD -MT $out -MF $out.d -c $in -o $out $flags"
+          command "#{path} -MMD -MT $out -MF $out.d $flags -c $in -o $out"
           depfile "$out.d"
           deps "gcc"
         end
@@ -80,9 +80,19 @@ module Sensei
       end
     end
 
+    class CPreprocessorConfiguration < CCompilerConfiguration
+      attr_reader :_output
+
+      def output(out)
+        @_output = out
+      end
+    end
+
     class CPreprocessorBuilder < CCompilerBuilder
       def get_output_name(input)
-        input.addconvert('.pp', :projectbuild)
+        input = input.addconvert('.pp', :projectbuild)
+        input = input.rebase @config._output if @config._output
+        input
       end
     end
 
@@ -90,14 +100,14 @@ module Sensei
       def initialize(path)
         super() do
           description "CPP $in"
-          command "#{path} -MMD -MT $out -MF $out.d -E $in -o $out $flags"
+          command "#{path} -MMD -MT $out -MF $out.d $flags -E $in -o $out"
           depfile "$out.d"
           deps "gcc"
         end
       end
 
       def create_config(*args, &block)
-        CCompilerConfiguration.new *args, &block
+        CPreprocessorConfiguration.new *args, &block
       end
 
       def create_builder(rule, config, input)
